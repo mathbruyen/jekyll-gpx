@@ -22,7 +22,7 @@ enable_gpx_traces: true
 ```
 and the custom tag can be used any number of times in the page:
 ```
-{% gpx_race _traces/track.gpx bigmap %}
+{% gpx_trace _traces/track.gpx bigmap %}
 ```
 with arguments being:
 * the path to the GPX file, relative to the `source` directory

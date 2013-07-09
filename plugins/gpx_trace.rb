@@ -58,4 +58,4 @@ class GpxTrace < Liquid::Tag
   end
 end
 
-Liquid::Template.register_tag('gpx_race', GpxTrace)
+Liquid::Template.register_tag('gpx_trace', GpxTrace)
