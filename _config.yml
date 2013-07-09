@@ -1,0 +1,3 @@
+# Leaflet using OpenStreeMap tiles, should be used only for very low traffic
+leaflet_tile_url: http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png
+leaflet_tile_attrib: Map data &copy; openstreetmap contributors
