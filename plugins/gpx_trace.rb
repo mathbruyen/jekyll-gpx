@@ -5,41 +5,70 @@ require 'json'
 
 include REXML
 
+class Helper < Liquid::Drop
+
+  attr_reader :tile_url, :tile_attrib
+
+  def initialize(site)
+    @tile_url = site.config['leaflet_tile_url']
+    @tile_attrib = site.config['leaflet_tile_attrib']
+  end
+
+  def unique_id
+    "map-" + SecureRandom.uuid
+  end
+end
+
+class Gpx < Liquid::Drop
+
+  attr_reader :tracks
+
+  def initialize(doc)
+    @tracks = doc.root.get_elements('trk').map { |track| GpxTrack.new(track) }
+  end
+end
+
+class GpxTrack < Liquid::Drop
+
+  attr_reader :name, :segments
+
+  def initialize(track)
+    @name = track.text('name')
+    @segments = track.get_elements('trkseg').map { |segment| GpxSegment.new(segment) }
+  end
+end
+
+class GpxSegment < Liquid::Drop
+
+  attr_reader :points
+
+  def initialize(segment)
+    # TODO sort by date
+    @points = segment.get_elements('trkpt').map { |point| GpxPoint.new(point) }
+  end
+
+  def points_json
+    @points.map { |point| [point.lat, point.lon] }.to_json
+  end
+end
+
+class GpxPoint < Liquid::Drop
+
+  attr_reader :lat, :lon
+
+  def initialize(point)
+    @lat = point.attributes['lat'].to_f
+    @lon = point.attributes['lon'].to_f
+  end
+end
+
 class GpxTrace < Liquid::Tag
 
   def initialize(tag_name, options, tokens)
     super
     options = options.split(' ').map {|i| i.strip }
     @path = options.slice!(0)
-    @classes = options
-  end
-
-  def renderTrack(track, site)
-    id = "map-" + SecureRandom.uuid
-
-    # TODO use an array joined at the end
-    source = ""
-
-    source += "<figure>\n"
-    source += "<div class=\"leaflet-custom " + @classes.join(' ') + "\" id=\"#{id}\"></div>\n"
-    source += "<figcaption>#{track.text('name')}</figcaption>\n"
-    source += "</figure>\n"
-    source += "<script>$(function() {\n"
-    source += "var bounds;\n"
-    source += "var map = L.map('#{id}');\n"
-    source += "var segment;\n"
-
-    track.each_element('trkseg') { |segment|
-      source += "segment = " + segment.get_elements('trkpt').map { |point| [point.attributes['lat'].to_f, point.attributes['lon'].to_f] }.to_json + ";\n"
-      source += "bounds = bounds ? bounds.extend(segment) : new L.LatLngBounds(segment);\n"
-      source += "L.polyline(segment, {color: 'red'}).addTo(map);\n"
-    }
-
-    source += "map.fitBounds(bounds);\n"
-    source += "L.tileLayer('#{site.config['leaflet_tile_url']}', { attribution: '#{site.config['leaflet_tile_attrib']}', maxZoom: 18 }).addTo(map);\n"
-    source += "})</script>\n"
-
-    source
+    @template = options.slice!(0)
   end
 
   def render(context)
@@ -49,12 +78,15 @@ class GpxTrace < Liquid::Tag
     if !gpx_file.file?
       return "File #{gpx_file} could not be found"
     end
-
     doc = Document.new(File.new(gpx_file))
-    # TODO use .map { ... }.join(' ')
-    source = ""
-    doc.root.each_element('trk') { |track| source += renderTrack(track, site) }
-    source
+
+    tpl_file = (Pathname.new(site.source) + @template).expand_path
+    if !tpl_file.file?
+      return "File #{tpl_file} could not be found"
+    end
+    tpl = File.read(tpl_file)
+    template = Liquid::Template.parse(tpl)
+    template.render('gpx' => Gpx.new(doc), 'helper' => Helper.new(site))
   end
 end
 
